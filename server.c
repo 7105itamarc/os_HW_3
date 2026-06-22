@@ -33,6 +33,7 @@ int unhandled_tasks; // gap
 // Create the global server log
 server_log global_log;
 
+// TODO: HW3 — Extend getargs() to parse the full argument list. check V
 
 // Parses command-line arguments
 void getargs(int *port, int *udp_port, int *worker_threads_amount, int *queue_size, double *debug_sleep_time, int argc,
@@ -49,7 +50,7 @@ void getargs(int *port, int *udp_port, int *worker_threads_amount, int *queue_si
 
 
 
-// TODO: HW3 — Task 1: Initialize the thread pool and request queue.
+// TODO: HW3 — Task 1: Initialize the thread pool and request queue. check V
 // This server currently handles all requests in the main thread.
 
 
@@ -92,7 +93,6 @@ void *worker_func(void *arg) {
 
 // TODO: HW3 — Task 4: Add the UDP channel (see the UDP_* wrappers in segel.c).
 
-// TODO: HW3 — Extend getargs() to parse the full argument list.
 
 int main(int argc, char *argv[]) {
 
