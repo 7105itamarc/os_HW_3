@@ -14,6 +14,7 @@
 
 struct Task {
     int connfd;
+    struct timeval arrival_time;
 };
 
 // global vars:
@@ -57,7 +58,7 @@ void getargs(int *port, int *udp_port, int *worker_threads_amount, int *queue_si
 // consumer protocol
 void *worker_func(void *arg) {
     threads_stats t_state = (threads_stats)arg;
-    time_stats dum;
+    time_stats timeStats;
 
     while (1) {
         pthread_mutex_lock(&global_lock);
@@ -66,9 +67,15 @@ void *worker_func(void *arg) {
         while (unhandled_tasks == 0) {
             pthread_cond_wait(&get_new_task, &global_lock);
         }
+
+        //record the time when a thread has took a queued job 
+        struct timeval timeThreadTookJob;
+        gettimeofday(&timeThreadTookJob, NULL);
+
         // if we are here unhandled_tasks > 0
         // save cur task - we will handel it outside the lock
         int curr_connfd = tasks_q[threads_p].connfd;
+        struct timeval curr_arrival = tasks_q[threads_p].arrival_time;
 
         // update pointers
         threads_p = (threads_p + 1) % queue_size;
@@ -80,10 +87,20 @@ void *worker_func(void *arg) {
         //unlock
         pthread_mutex_unlock(&global_lock);
 
+        //write all the time statistics that we have gathered
+        timeStats.task_arrival = curr_arrival;
+        timeStats.task_dispatch = timeThreadTookJob;
+
+        // log times for now will be 0 (we will fill these in Task 5)
+        timeStats.log_enter.tv_sec = 0;
+        timeStats.log_enter.tv_usec = 0;
+        timeStats.log_exit.tv_sec = 0;
+        timeStats.log_exit.tv_usec = 0;
+
         // worker handel last task from tasks_list - Call the request handler
         // we do have jobs outSide the lock !
         // we will update with time_state and thread_state later
-        requestHandle(curr_connfd, dum, t_state, global_log);
+        requestHandle(curr_connfd, timeStats, t_state, global_log);
 
         // Close the connection
         Close(curr_connfd);
@@ -138,6 +155,10 @@ int main(int argc, char *argv[]) {
         clientlen = sizeof(clientaddr);
         connfd = Accept(listenfd, (SA *) &clientaddr, (socklen_t *) &clientlen);
 
+        //write the time that a request has arrived
+        struct timeval arrival;
+        gettimeofday(&arrival, NULL);
+
         // the producer protocol in the consumer/producer cycle
         pthread_mutex_lock(&global_lock);
 
@@ -147,6 +168,7 @@ int main(int argc, char *argv[]) {
         // if we are here there is new space in the tasks_q
         // lets include the new task
         tasks_q[tasks_p].connfd =connfd; // saves the curr task_fd into the task in the queue
+        tasks_q[tasks_p].arrival_time = arrival; //save the arrival time of the task
 
         // update pointers
         tasks_p = (tasks_p + 1) % queue_size;

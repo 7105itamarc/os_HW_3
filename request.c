@@ -148,6 +148,9 @@ void requestHandle(int fd, time_stats tm_stats, threads_stats t_stats, server_lo
     int body_len = 0;
     char resp_headers[MAXBUF];
 
+    //increment total requests, errors count as well
+    t_stats->total_req++;
+
     Rio_readinitb(&rio, fd);
     Rio_readlineb(&rio, buf, MAXLINE);
     sscanf(buf, "%s %s %s", method, uri, version);
@@ -166,6 +169,10 @@ void requestHandle(int fd, time_stats tm_stats, threads_stats t_stats, server_lo
                 requestError(fd, filename, "403", "Forbidden", "OS-HW3 Server could not read this file", tm_stats, t_stats);
                 return;
             }
+
+            //a valid static request was made - increment total static requests
+            t_stats->stat_req++; 
+
             requestGetFiletype(filename, filetype);
             body_len = sbuf.st_size;
             body_content = requestPrepareStatic(filename, body_len);
@@ -180,12 +187,20 @@ void requestHandle(int fd, time_stats tm_stats, threads_stats t_stats, server_lo
                 requestError(fd, filename, "403", "Forbidden", "OS-HW3 Server could not run this CGI program", tm_stats, t_stats);
                 return;
             }
+
+            //a valid dynamic request was made - increment total dyanmic requests
+            t_stats->dynm_req++;
+
             body_content = requestPrepareDynamic(filename, cgiargs, &body_len);
 
             sprintf(resp_headers, "HTTP/1.0 200 OK\r\n");
             sprintf(resp_headers + strlen(resp_headers), "Server: OS-HW3 Web Server\r\n");
         }
     } else if (strcasecmp(method, "POST") == 0) {
+
+        //a valid POST request was made - increment total POST requests
+        t_stats->post_req++;
+
         body_len = get_log(log, (char**)&body_content);
 
         sprintf(resp_headers, "HTTP/1.0 200 OK\r\n");
