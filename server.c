@@ -29,6 +29,7 @@ int queue_size;
 int tasks_p; // producer
 int threads_p; // consumer
 int unhandled_tasks; // gap
+int udp_sd; // server's UDP socket to which we will/read data to/from
 
 
 // Create the global server log
@@ -64,8 +65,43 @@ void *worker_func(void *arg) {
         pthread_mutex_lock(&global_lock);
 
         // trying to get a new task
-        while (unhandled_tasks == 0) {
+        while (unhandled_tasks == 0 && t_state->pending_udp_list_head == NULL) {
             pthread_cond_wait(&get_new_task, &global_lock);
+        }
+
+        //handle pending worker's UDP pings
+        if(t_state->pending_udp_list_head != NULL){
+
+            //get the head UDP ping and advance our pings queue
+            udp_ping_node* udp_ping_to_process = t_state->pending_udp_list_head;
+            t_state->pending_udp_list_head = udp_ping_to_process->next;
+            
+            if(t_state->pending_udp_list_head == NULL){
+
+                //pings queue got emptied
+                t_state->pending_udp_list_tail = NULL;
+
+            }
+            
+            //exctrat the ping's source address
+            struct sockaddr_in clientaddr = udp_ping_to_process->clientaddr;
+
+            pthread_mutex_unlock(&global_lock);
+            
+            // free the popped node's memory
+            free(udp_ping_to_process);
+
+            //write the requested thread statistics back to the client
+            char threadStatsBuffer[MAXBUF];
+
+            sprintf(threadStatsBuffer, "Stat-Thread-Id:: %d\r\nStat-Thread-Count:: %d\r\nStat-Thread-Static:: %d\r\nStat-Thread-Dynamic:: %d\r\nStat-Thread-Post:: %d\r\n",
+                    t_state->id, t_state->total_req, t_state->stat_req, t_state->dynm_req, t_state->post_req);
+            
+            UDP_Write(udp_sd, &clientaddr, threadStatsBuffer, strlen(threadStatsBuffer));
+
+            // continue looping and check if there are more UDP pings waiting for the thread
+            continue; 
+
         }
 
         //record the time when a thread has took a queued job 
@@ -105,7 +141,9 @@ void *worker_func(void *arg) {
         // Close the connection
         Close(curr_connfd);
     }
+
     return NULL;
+    
 }
 
 // TODO: HW3 — Task 4: Add the UDP channel (see the UDP_* wrappers in segel.c).
@@ -145,40 +183,121 @@ int main(int argc, char *argv[]) {
         threads_s[i].dynm_req = 0;    // Dynamic request count
         threads_s[i].post_req = 0;    // POST request count
         threads_s[i].total_req = 0;   // Total request count
+        threads_s[i].pending_udp_list_head= NULL;   // thread's UDP ping queue
+        threads_s[i].pending_udp_list_tail = NULL;  // thread's UDP ping queue
 
         pthread_create(&threads[i], NULL, worker_func, &threads_s[i]);
     }
 
     listenfd = Open_listenfd(port);
 
+    //open the udp port
+    udp_sd = UDP_Open(udp_port);
+
+    fd_set read_set;
+    int maxfd = (listenfd > udp_sd) ? listenfd : udp_sd;
+
     while (1) {
-        clientlen = sizeof(clientaddr);
-        connfd = Accept(listenfd, (SA *) &clientaddr, (socklen_t *) &clientlen);
 
-        //write the time that a request has arrived
-        struct timeval arrival;
-        gettimeofday(&arrival, NULL);
+        FD_ZERO(&read_set);
+        FD_SET(listenfd, &read_set);
+        FD_SET(udp_sd, &read_set);
 
-        // the producer protocol in the consumer/producer cycle
-        pthread_mutex_lock(&global_lock);
+        //determine using select if new information arrived to our TCP/UDP sockets
+        //prioritise the UDP socket first
+        Select(maxfd + 1, &read_set, NULL, NULL, NULL);
 
-        while (unhandled_tasks == queue_size) {
-            pthread_cond_wait(&get_new_space,&global_lock);
+        //check if a UDP ping has been sent
+        if(FD_ISSET(udp_sd, &read_set)){
+
+            struct sockaddr_in clientAddress;
+            char messageBuffer[MAXLINE];
+
+            //read MAXLINE bytes from the UDP socket into the message buffer
+            int numOfReadBytes = UDP_Read(udp_sd, &clientAddress, messageBuffer, MAXLINE);
+
+            if(numOfReadBytes > 0){
+
+                //format the message we have read with null termination
+                messageBuffer[numOfReadBytes] = '\0';
+
+                //convert the UDP sent thread id into an int
+                int targetThreadId = atoi(messageBuffer);
+                
+                if(targetThreadId >= 0 && targetThreadId < worker_threads_amount){
+
+                    // add the UDP ping to the designated thread's queue
+                    udp_ping_node* newUdpPingNode = malloc(sizeof(udp_ping_node));
+                    newUdpPingNode->clientaddr = clientAddress;
+                    newUdpPingNode->next = NULL;
+
+                    //take the lock because we must modify the UDP pings queue 
+                    //which can be accessed by the master thread synchronically as well
+
+                    pthread_mutex_lock(&global_lock);
+                    
+                    if(threads_s[targetThreadId].pending_udp_list_tail == NULL) {
+
+                        //the thread's UDP list is empty we will update the tail and head accordingly
+                        threads_s[targetThreadId].pending_udp_list_head = newUdpPingNode;
+                        threads_s[targetThreadId].pending_udp_list_tail = newUdpPingNode;
+
+                    }else{
+
+                        threads_s[targetThreadId].pending_udp_list_tail->next = newUdpPingNode;
+                        threads_s[targetThreadId].pending_udp_list_tail = newUdpPingNode;
+
+                    }
+                    
+                    //broadcast to all the worker threads so the designated thread will have a chance
+                    //to wake up in case it sleeps and respond to the UDP ping
+
+                    pthread_cond_broadcast(&get_new_task); 
+
+                    //release the lock
+                    pthread_mutex_unlock(&global_lock);
+
+                }
+            }
         }
-        // if we are here there is new space in the tasks_q
-        // lets include the new task
-        tasks_q[tasks_p].connfd =connfd; // saves the curr task_fd into the task in the queue
-        tasks_q[tasks_p].arrival_time = arrival; //save the arrival time of the task
 
-        // update pointers
-        tasks_p = (tasks_p + 1) % queue_size;
-        unhandled_tasks++;
 
-        // announce new task was created
-        pthread_cond_signal(&get_new_task);
+        //after checking the UDP pings check if there are TCP jobs that need handaling
 
-        //unlock
-        pthread_mutex_unlock(&global_lock);
+        if(FD_ISSET(listenfd, &read_set)){
+
+            clientlen = sizeof(clientaddr);
+            connfd = Accept(listenfd, (SA *) &clientaddr, (socklen_t *) &clientlen);
+
+            //write the time that a request has arrived
+            struct timeval arrival;
+            gettimeofday(&arrival, NULL);
+
+            // the producer protocol in the consumer/producer cycle
+            pthread_mutex_lock(&global_lock);
+
+            while (unhandled_tasks == queue_size) {
+                pthread_cond_wait(&get_new_space,&global_lock);
+            }
+
+            // if we are here there is new space in the tasks_q
+            // lets include the new task
+            tasks_q[tasks_p].connfd =connfd; // saves the curr task_fd into the task in the queue
+            tasks_q[tasks_p].arrival_time = arrival; //save the arrival time of the task
+
+            // update pointers
+            tasks_p = (tasks_p + 1) % queue_size;
+            unhandled_tasks++;
+
+            // announce new task was created
+            pthread_cond_signal(&get_new_task);
+
+            //unlock
+            pthread_mutex_unlock(&global_lock);
+
+        }
+
+        
     }
 
 
@@ -190,4 +309,7 @@ int main(int argc, char *argv[]) {
     // Clean up the server log before exiting
     destroy_log(global_log);
     free(threads_s);
+    free(threads);
+    free(tasks_q);
+
 }

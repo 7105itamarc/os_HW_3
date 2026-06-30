@@ -3,12 +3,22 @@
 
 #include "log.h"
 
+typedef struct Udp_Ping_Node {
+    struct sockaddr_in clientaddr;
+    struct Udp_Ping_Node *next;
+} udp_ping_node;
+
 typedef struct Threads_stats {
     int id;           // Thread ID
     int stat_req;     // Number of static requests handled
     int dynm_req;     // Number of dynamic requests handled
     int post_req;     // Number of POST requests handled
     int total_req;    // Total number of requests handled
+
+    //we will record the waiting udp pings for the specific node
+    udp_ping_node* pending_udp_list_head;
+    udp_ping_node* pending_udp_list_tail;
+
 } * threads_stats;
 
 typedef struct Time_stats {
