@@ -159,7 +159,6 @@ int main(int argc, char *argv[]) {
     int udp_port = 0;
     double debug_sleep_time = 0;
 
-    global_log = create_log(debug_sleep_time);
 
     pthread_mutex_init(&global_lock, NULL);
     pthread_cond_init(&get_new_task, NULL);
@@ -167,6 +166,10 @@ int main(int argc, char *argv[]) {
 
     // given args to initial with
     getargs(&port, &udp_port, &worker_threads_amount, &queue_size, &debug_sleep_time, argc, argv);
+
+    //create the server's log with the provided debug sleep time
+    global_log = create_log(debug_sleep_time);
+    
 
     // create threads arr
     pthread_t *threads = malloc(sizeof(pthread_t) * worker_threads_amount);
