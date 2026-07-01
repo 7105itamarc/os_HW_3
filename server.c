@@ -44,11 +44,49 @@ void getargs(int *port, int *udp_port, int *worker_threads_amount, int *queue_si
         fprintf(stderr, "Usage: %s <port>\n", argv[0]);
         exit(1);
     }
+
+
     *port = atoi(argv[1]);
     *udp_port = atoi(argv[2]);
     *worker_threads_amount = atoi(argv[3]);
     *queue_size = atoi(argv[4]);
-    *debug_sleep_time = atof(argv[5]);}
+    *debug_sleep_time = atof(argv[5]);
+    
+    //check for the validity of all the provided server initialization arguments
+
+    // TCP port argument check
+    if(*port <= 1024){
+
+        fprintf(stderr, "Error: TCP port must be above 1024.\n");
+        exit(1);
+
+    }
+
+    // UDP port argument check
+    if (*udp_port <= 1024 || *udp_port == *port){
+
+        fprintf(stderr, "Error: UDP port must be above 1024 and different than Tcp_portnum.\n");
+        exit(1);
+
+    }
+
+    // Worker threads amount argument check
+    if (*worker_threads_amount <= 0){
+
+        fprintf(stderr, "Error: Number of worker threads must be a positive integer.\n");
+        exit(1);
+
+    }
+
+    // Queue size argument check
+    if (*queue_size <= 0){
+
+        fprintf(stderr, "Error: Queue size must be a positive integer.\n");
+        exit(1);
+
+    }
+
+}
 
 
 
@@ -169,7 +207,7 @@ int main(int argc, char *argv[]) {
 
     //create the server's log with the provided debug sleep time
     global_log = create_log(debug_sleep_time);
-    
+
 
     // create threads arr
     pthread_t *threads = malloc(sizeof(pthread_t) * worker_threads_amount);
