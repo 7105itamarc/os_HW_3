@@ -319,6 +319,10 @@ int main(int argc, char *argv[]) {
 
                 //convert the UDP sent thread id into an int
                 int targetThreadId = atoi(messageBuffer);
+
+                //convert the targetThreadId into the proper threads_s index
+                //due to 1 to N to 0 to N - 1 offset
+                targetThreadId -= 1;
                 
                 if(targetThreadId >= 0 && targetThreadId < worker_threads_amount){
 
@@ -331,7 +335,7 @@ int main(int argc, char *argv[]) {
                         fprintf(stderr, "Error: Failed to allocate memory for a new UDP ping node.\n");
                         
                         //clean the threads' UDP pings lists memory
-                        for(int i = 1; i <= worker_threads_amount; i++){
+                        for(int i = 0; i < worker_threads_amount; i++){
 
                             udp_ping_node *curr = threads_s[i].pending_udp_list_head;
 
@@ -435,7 +439,7 @@ int main(int argc, char *argv[]) {
     // Clean up the server log before exiting
 
     //clean the threads' UDP pings lists memory
-    for(int i = 1; i <= worker_threads_amount; i++){
+    for(int i = 0; i < worker_threads_amount; i++){
 
         udp_ping_node *curr = threads_s[i].pending_udp_list_head;
 
