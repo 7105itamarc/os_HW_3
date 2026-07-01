@@ -220,14 +220,52 @@ int main(int argc, char *argv[]) {
     // create threads arr
     pthread_t *threads = malloc(sizeof(pthread_t) * worker_threads_amount);
 
+    //check that threads memory allocation was successful
+    if(!threads){
+
+        fprintf(stderr, "Error: Memory allocation failed for threads.\n");
+
+        destroy_log(global_log); // free up the log's memory
+
+        exit(1);
+
+    }
+
     // initial tasks_q
     tasks_q = malloc(sizeof(struct Task) * queue_size);
+
+    //check that tasks_q memory allocation was successful
+    if(!tasks_q){
+
+        fprintf(stderr, "Error: Memory allocation failed for tasks queue.\n");
+
+        //free already allocated resources
+        destroy_log(global_log); // free up the log's memory
+        free(threads);
+
+        exit(1);
+
+    }
 
     // create threads state arr
     threads_stats threads_s= malloc(sizeof(struct Threads_stats) * worker_threads_amount);
 
+    //check that threads_s memory allocation was successful
+    if(!threads_s){
+
+        fprintf(stderr, "Error: Memory allocation failed for thread statistics.\n");
+
+        //free already allocated resources
+        destroy_log(global_log); // free up the log's memory
+        free(threads);
+        free(tasks_q);
+
+        exit(1);
+
+    }
+
     for (int i = 0; i < worker_threads_amount; i++) {
-        threads_s[i].id = i;          // Thread ID (placeholder)
+        threads_s[i].id = i + 1;          // Thread ID (placeholder) (1 to N)
         threads_s[i].stat_req = 0;    // Static request count
         threads_s[i].dynm_req = 0;    // Dynamic request count
         threads_s[i].post_req = 0;    // POST request count
@@ -286,6 +324,38 @@ int main(int argc, char *argv[]) {
 
                     // add the UDP ping to the designated thread's queue
                     udp_ping_node* newUdpPingNode = malloc(sizeof(udp_ping_node));
+
+                    //make sure that the allocation of the new udp node was successful
+                    if(!newUdpPingNode){
+
+                        fprintf(stderr, "Error: Failed to allocate memory for a new UDP ping node.\n");
+                        
+                        //clean the threads' UDP pings lists memory
+                        for(int i = 1; i <= worker_threads_amount; i++){
+
+                            udp_ping_node *curr = threads_s[i].pending_udp_list_head;
+
+                            while(curr != NULL) {
+
+                                udp_ping_node *temp = curr;
+                                curr = curr->next;
+                                free(temp);
+                                
+                            }
+
+                        }
+
+
+                        //free already allocated resources
+                        destroy_log(global_log); // free up the log's memory
+                        free(threads);
+                        free(tasks_q);
+                        free(threads_s);
+
+                        exit(1);
+
+                    }
+
                     newUdpPingNode->clientaddr = clientAddress;
                     newUdpPingNode->next = NULL;
 
@@ -359,12 +429,31 @@ int main(int argc, char *argv[]) {
     }
 
 
-
-
     // TODO: HW3 — Record the request arrival time here.
 
     // TODO: HW3 — Add cleanup code for the thread pool and queue.
     // Clean up the server log before exiting
+
+    //clean the threads' UDP pings lists memory
+    for(int i = 1; i <= worker_threads_amount; i++){
+
+        udp_ping_node *curr = threads_s[i].pending_udp_list_head;
+
+        while(curr != NULL) {
+
+            udp_ping_node *temp = curr;
+            curr = curr->next;
+            free(temp);
+                                
+        }
+
+    }
+
+    //free up all system's resources memory
+    pthread_mutex_destroy(&global_lock);
+    pthread_cond_destroy(&get_new_task);
+    pthread_cond_destroy(&get_new_space);
+
     destroy_log(global_log);
     free(threads_s);
     free(threads);

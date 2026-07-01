@@ -37,16 +37,27 @@ server_log create_log(double debug_sleep_time) {
     //update debug sleep time with the provided one
     log->debug_sleep_time = debug_sleep_time; 
 
+    // TODO: Allocate memory for the actual text log later
+    log->dynamic_buffer = malloc(1);
+
+    //make sure the buffer primary allocation is successful
+    if(!log->dynamic_buffer){
+
+        //malloc failed, exit
+        fprintf(stderr, "Error: Memory allocation failed for log's dynamic buffer.\n");
+        exit(1);
+
+    }
+
+    log->dynamic_buffer[0] = '\0';
+    log->curr_size = 0;
+
     pthread_mutex_init(&log->read_write_lock, NULL);
     pthread_cond_init(&log->read_allowed, NULL);
     pthread_cond_init(&log->write_allowed, NULL);
 
-    // TODO: Allocate memory for the actual text log later
-    log->dynamic_buffer = malloc(1);
-    log->dynamic_buffer[0] = '\0';
-    log->curr_size = 0;
-
     return log;
+
 }
 
 // Destroys and frees the log (stub)
@@ -96,7 +107,14 @@ int get_log(server_log log, char **dst, time_stats* tm_stats) {
     if (log_copy != NULL) // if malloc didn't fail
     {
         strcpy(log_copy, log->dynamic_buffer);
+    }else{
+
+        //malloc has failed, exit
+        fprintf(stderr, "Error: Memory allocation failed for log's reading buffer.\n");
+        exit(1);
+
     }
+
     *dst = log_copy;
 
     pthread_mutex_lock(&log->read_write_lock);
@@ -147,7 +165,18 @@ void add_to_log(server_log log, threads_stats t_stats, time_stats* tm_stats) {
 
     // todo: [do writing action]
     int allocate_size = log->curr_size + data_len + 1 + 1; // new size + '#' + '\0'
+
     log->dynamic_buffer = realloc(log->dynamic_buffer, allocate_size);
+
+    //make sure realloc didn't fail
+    if(!log->dynamic_buffer){
+
+        //realloc has failed, exit
+        fprintf(stderr, "Error: Memory reallocation failed for log's dynamic buffer.\n");
+        exit(1);
+
+    }
+
     strcat(log->dynamic_buffer, requestStatsBuffer);
     strcat(log->dynamic_buffer, "#");
     log->curr_size = allocate_size - 1; //real size without '\0'
