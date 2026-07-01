@@ -208,6 +208,14 @@ int main(int argc, char *argv[]) {
     //create the server's log with the provided debug sleep time
     global_log = create_log(debug_sleep_time);
 
+    //make sure memory for log was succesfully allocated
+    if(global_log == NULL){
+
+        fprintf(stderr, "Error: Failed to allocate memory for the server log.\n");
+        exit(1);
+
+    }
+
 
     // create threads arr
     pthread_t *threads = malloc(sizeof(pthread_t) * worker_threads_amount);
@@ -235,6 +243,15 @@ int main(int argc, char *argv[]) {
     //open the udp port
     udp_sd = UDP_Open(udp_port);
 
+    //make sure that the UDP port has been successfuly opened 
+    if (udp_sd < 0) {
+
+        fprintf(stderr, "Error: Failed to open UDP port %d.\n", udp_port);
+        exit(1);
+
+    }
+
+
     fd_set read_set;
     int maxfd = (listenfd > udp_sd) ? listenfd : udp_sd;
 
@@ -254,8 +271,8 @@ int main(int argc, char *argv[]) {
             struct sockaddr_in clientAddress;
             char messageBuffer[MAXLINE];
 
-            //read MAXLINE bytes from the UDP socket into the message buffer
-            int numOfReadBytes = UDP_Read(udp_sd, &clientAddress, messageBuffer, MAXLINE);
+            //read MAXLINE - 1 (for the null terminator) bytes from the UDP socket into the message buffer
+            int numOfReadBytes = UDP_Read(udp_sd, &clientAddress, messageBuffer, MAXLINE - 1);
 
             if(numOfReadBytes > 0){
 
