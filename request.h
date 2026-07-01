@@ -46,5 +46,7 @@ typedef struct Time_stats {
 int append_job_log(char* buf, time_stats tm_stats);
 int append_thread_log(char* buf, threads_stats t_stats);
 
+int append_stats(char* buf, threads_stats t_stats, time_stats tm_stats);
+
 void requestHandle(int fd, time_stats tm_stats,  threads_stats t_stats, server_log log);
 #endif

@@ -196,21 +196,31 @@ void requestHandle(int fd, time_stats tm_stats, threads_stats t_stats, server_lo
             sprintf(resp_headers, "HTTP/1.0 200 OK\r\n");
             sprintf(resp_headers + strlen(resp_headers), "Server: OS-HW3 Web Server\r\n");
         }
-    } else if (strcasecmp(method, "POST") == 0) {
+
+        // add a record of the valid GET request into the log
+        add_to_log(log, t_stats, &tm_stats);
+
+    }else if (strcasecmp(method, "POST") == 0){
 
         //a valid POST request was made - increment total POST requests
         t_stats->post_req++;
 
-        body_len = get_log(log, (char**)&body_content);
+        // POST request reads the log
+        body_len = get_log(log, (char**)&body_content, &tm_stats);
 
         sprintf(resp_headers, "HTTP/1.0 200 OK\r\n");
         sprintf(resp_headers + strlen(resp_headers), "Server: OS-HW3 Web Server\r\n");
         sprintf(resp_headers + strlen(resp_headers), "Content-Length: %d\r\n", body_len);
         sprintf(resp_headers + strlen(resp_headers), "Content-Type: text/plain\r\n");
-    } else {
+
+    }else{
+
         requestError(fd, method, "501", "Not Implemented", "OS-HW3 Server does not implement this method", tm_stats, t_stats);
         return;
+
     }
+
+
     // --- SEND ---
     int total_header_len = append_stats(resp_headers, t_stats, tm_stats);
     Rio_writen(fd, resp_headers, total_header_len);
@@ -219,4 +229,6 @@ void requestHandle(int fd, time_stats tm_stats, threads_stats t_stats, server_lo
     if (body_content) {
         free(body_content);
     }
+
+
 }

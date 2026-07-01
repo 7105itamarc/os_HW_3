@@ -159,7 +159,7 @@ int main(int argc, char *argv[]) {
     int udp_port = 0;
     double debug_sleep_time = 0;
 
-    global_log = create_log();
+    global_log = create_log(debug_sleep_time);
 
     pthread_mutex_init(&global_lock, NULL);
     pthread_cond_init(&get_new_task, NULL);
