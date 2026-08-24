@@ -177,8 +177,8 @@ void add_to_log(server_log log, threads_stats t_stats, time_stats* tm_stats) {
 
     }
 
+    if(log->curr_size > 0){ strcat(log->dynamic_buffer, "#"); } else{ allocate_size -= 1; }
     strcat(log->dynamic_buffer, requestStatsBuffer);
-    strcat(log->dynamic_buffer, "#");
     log->curr_size = allocate_size - 1; //real size without '\0'
 
     log->writers_inside--;
