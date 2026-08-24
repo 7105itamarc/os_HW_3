@@ -55,7 +55,7 @@ void getargs(int *port, int *udp_port, int *worker_threads_amount, int *queue_si
     //check for the validity of all the provided server initialization arguments
 
     // TCP port argument check
-    if(*port <= 1024){
+    if(*port <= 1024 || strspn(argv[1], "0123456789") != strlen(argv[1])){
 
         fprintf(stderr, "Error: TCP port must be above 1024.\n");
         exit(1);
@@ -63,7 +63,7 @@ void getargs(int *port, int *udp_port, int *worker_threads_amount, int *queue_si
     }
 
     // UDP port argument check
-    if (*udp_port <= 1024 || *udp_port == *port){
+    if (*udp_port <= 1024 || *udp_port == *port || strspn(argv[2], "0123456789") != strlen(argv[2])){
 
         fprintf(stderr, "Error: UDP port must be above 1024 and different than Tcp_portnum.\n");
         exit(1);
@@ -71,7 +71,7 @@ void getargs(int *port, int *udp_port, int *worker_threads_amount, int *queue_si
     }
 
     // Worker threads amount argument check
-    if (*worker_threads_amount <= 0){
+    if (*worker_threads_amount <= 0 || strspn(argv[3], "0123456789") != strlen(argv[3])){
 
         fprintf(stderr, "Error: Number of worker threads must be a positive integer.\n");
         exit(1);
@@ -79,7 +79,7 @@ void getargs(int *port, int *udp_port, int *worker_threads_amount, int *queue_si
     }
 
     // Queue size argument check
-    if (*queue_size <= 0){
+    if (*queue_size <= 0 || strspn(argv[4], "0123456789") != strlen(argv[4])){
 
         fprintf(stderr, "Error: Queue size must be a positive integer.\n");
         exit(1);
