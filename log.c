@@ -146,7 +146,7 @@ void add_to_log(server_log log, threads_stats t_stats, time_stats* tm_stats) {
 
     // if we are here writers_waiting == 0 -> do writing action
     log->writers_waiting--;
-    log->writers_inside++;
+    log->writers_inside++; pthread_mutex_unlock(&log->read_write_lock);
 
     // simulate I/O disk delay for debug sleep time seconds (simulation will happen only if it is non negative)
     if (log->debug_sleep_time > 0) {
@@ -166,7 +166,7 @@ void add_to_log(server_log log, threads_stats t_stats, time_stats* tm_stats) {
     // todo: [do writing action]
     int allocate_size = log->curr_size + data_len + 1 + 1; // new size + '#' + '\0'
 
-    log->dynamic_buffer = realloc(log->dynamic_buffer, allocate_size);
+    pthread_mutex_lock(&log->read_write_lock); log->dynamic_buffer = realloc(log->dynamic_buffer, allocate_size);
 
     //make sure realloc didn't fail
     if(!log->dynamic_buffer){
@@ -177,9 +177,9 @@ void add_to_log(server_log log, threads_stats t_stats, time_stats* tm_stats) {
 
     }
 
-    if(log->curr_size > 0){ strcat(log->dynamic_buffer, "#"); } else{ allocate_size -= 1; }
+    if(log->curr_size > 0){ strcat(log->dynamic_buffer, "#"); }
     strcat(log->dynamic_buffer, requestStatsBuffer);
-    log->curr_size = allocate_size - 1; //real size without '\0'
+    log->curr_size = (log->curr_size > 0) ? allocate_size - 1 : allocate_size - 2; //real size without '\0'
 
     log->writers_inside--;
     if (log->writers_waiting > 0) {
